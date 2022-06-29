@@ -11,12 +11,20 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
+const {
+    logger,
+    metrics,
+    loggerInjectLambdaContext,
+    tracerCaptureLambdaHandler,
+    metricsLogMetrics,
+    MetricUnits
+} = require('./powertools.js');
 const AWS = require('aws-sdk');
 const uuidv4 = require('uuid/v4');
 const error = require('./lib/error.js');
+const middy = require('@middy/core');
 
-exports.handler = async (event) => {
-    console.log(`REQUEST:: ${JSON.stringify(event, null, 2)}`);
+const lambdaHandler = async (event) => {
 
     const stepfunctions = new AWS.StepFunctions({
         region: process.env.AWS_REGION,
@@ -25,6 +33,7 @@ exports.handler = async (event) => {
 
     let response;
     let params;
+    let context = {};
 
     try {
         switch (true) {
@@ -45,6 +54,11 @@ exports.handler = async (event) => {
                     name: event.guid
                 };
                 response = 'success';
+                context = {
+                    workflowTrigger: event.workflowTrigger,
+                    guid: event.guid,
+                    ...context
+                }
                 break;
 
             case event.hasOwnProperty('guid'):
@@ -57,16 +71,27 @@ exports.handler = async (event) => {
                     name: event.guid
                 };
                 response = 'success';
+                context = {
+                    workflowTrigger: event.workflowTrigger,
+                    guid: event.guid,
+                    ...context
+                }
                 break;
 
             case event.hasOwnProperty('detail'):
-                // Publish workflow triggered by MediaConver CloudWatch event::
+                // Publish workflow triggered by MediaConvert CloudWatch event::
                 params = {
                     stateMachineArn: process.env.PublishWorkflow,
                     input: JSON.stringify(event),
                     name: event.detail.userMetadata.guid
                 };
                 response = 'success';
+                context = {
+                    stateMachineArn: process.env.PublishWorkflow,
+                    workflowTrigger: event.workflowTrigger,
+                    guid: event.detail.userMetadata.guid,
+                    ...context
+                }
                 break;
 
             default:
@@ -74,11 +99,33 @@ exports.handler = async (event) => {
         }
 
         let data = await stepfunctions.startExecution(params).promise();
-        console.log(`STATEMACHINE EXECUTE:: ${JSON.stringify(data, null, 2)}`);
+
+        context = {
+            success: 'true',
+            ...context
+        }
+        logger.info('STATEMACHINE EXECUTION', {
+            ...context,
+            details: {
+                data
+            }
+        });
     } catch (err) {
         await error.handler(event, err);
+        context = {
+            success: 'false',
+            ...context
+        }
+        logger.error('Unexpected error occurred', err, ...context);
         throw err;
     }
+    metrics.addDimensions(context);
+    metrics.addMetric('statemachine-execution', MetricUnits.Count, 1);
 
     return response;
 };
+
+exports.handler = middy(lambdaHandler)
+    .use(tracerCaptureLambdaHandler)
+    .use(metricsLogMetrics)
+    .use(loggerInjectLambdaContext);

@@ -11,6 +11,7 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
+const { logger } = require('./../powertools.js');
 const AWS = require('aws-sdk');
 
 let errHandler = async (event, _err) => {

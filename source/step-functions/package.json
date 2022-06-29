@@ -11,6 +11,10 @@
     "test": "mocha lib/*.spec.js"
   },
   "dependencies": {
+    "@aws-lambda-powertools/logger": "^0.11.1-rc.0",
+    "@aws-lambda-powertools/metrics": "^0.11.1-rc.0",
+    "@aws-lambda-powertools/tracer": "^0.11.1-rc.0",
+    "@middy/core": "^2.5.7",
     "moment": "^2.24.0",
     "uuid": "^3.4.0"
   },
