@@ -116,7 +116,7 @@ const lambdaHandler = async (event) => {
             success: 'false',
             ...context
         }
-        logger.error('Unexpected error occurred', err, ...context);
+        logger.error('Unexpected error occurred', err, context);
         throw err;
     }
     metrics.addDimensions(context);
